@@ -1,0 +1,23 @@
+# Core Web & API Framework
+Django>=5.1
+daphne>=4.1
+channels>=4.0
+djangorestframework>=3.15
+django-cors-headers>=4.3
+psycopg2-binary>=2.9.9
+
+# Cloud Deployment & Database URL Parsing
+dj-database-url>=2.1.0
+
+# Cryptography & Security
+cryptography>=42.0.0
+python-dotenv>=1.0.0
+
+# HTTP & WebSockets
+httpx>=0.27.0
+websockets>=13.0
+
+# Browser Automation & GUI (Desktop Agent)
+playwright>=1.45.0
+PyQt6>=6.6.0
+pyinstaller>=6.5.0
