@@ -25,6 +25,8 @@ from .chat_views import (
     AIChatMessageSendView,
     AISwarmStatusView,
     AISwarmEvaluateView,
+    AIDiscoveryMemoryListCreateView,
+    AIDiscoveryMemoryDetailView,
 )
 
 router = DefaultRouter()
@@ -54,6 +56,11 @@ urlpatterns = [
     path('ai/chats/<int:session_id>/message/', AIChatMessageSendView.as_view(), name='ai-chat-message'),
     path('ai/swarm/status/', AISwarmStatusView.as_view(), name='ai-swarm-status'),
     path('ai/swarm/evaluate/', AISwarmEvaluateView.as_view(), name='ai-swarm-evaluate'),
+
+    # AI Discovery Memory & Knowledge Vault
+    path('ai/memories/', AIDiscoveryMemoryListCreateView.as_view(), name='ai-memories-list'),
+    path('ai/memories/<int:memory_id>/', AIDiscoveryMemoryDetailView.as_view(), name='ai-memory-detail'),
+
 
     path('', include(router.urls)),
 ]

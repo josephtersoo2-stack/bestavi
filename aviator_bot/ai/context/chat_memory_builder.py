@@ -41,3 +41,25 @@ def build_chat_memory_context(
             sections.append(f"[{sender}]: {content}")
 
     return "\n".join(sections)
+
+
+def build_discovery_memories_context(discovery_memories: list[dict[str, Any]] | None = None) -> str:
+    """Format active user discoveries & empirical findings into a high-priority knowledge bank."""
+    if not discovery_memories:
+        return ""
+
+    lines = [
+        "### PERMANENT DISCOVERY MEMORY BANK & STRATEGIC VAULT:",
+        "The following empirical findings, streak timing patterns, and strategic rules were discovered by the user and confirmed by the swarm. You MUST remember, factor in, and respect these rules in all evaluations and replies:",
+    ]
+    for mem in discovery_memories[:15]:
+        title = mem.get("title", "Untitled Discovery")
+        category = mem.get("category", "GENERAL")
+        content = mem.get("content", "")
+        lines.append(f"- [{category}] **{title}**: {content}")
+
+    lines.append(
+        "DIRECTIVE: Always acknowledge, reference, and synthesize these past discoveries when answering questions, analyzing risk, or predicting outcomes."
+    )
+    return "\n".join(lines)
+

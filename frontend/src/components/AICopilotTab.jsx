@@ -22,10 +22,18 @@ import {
   History,
   Lock,
   ChevronLeft,
-  ChevronRight,
   Pencil,
   Check,
-  X
+  X,
+  BookmarkPlus,
+  Bookmark,
+  Search,
+  Filter,
+  Clock,
+  ToggleLeft,
+  ToggleRight,
+  Database,
+  BookOpen
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -58,9 +66,26 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
   const [sendingChat, setSendingChat] = useState(false);
   const chatBottomRef = useRef(null);
 
+  // Discovery Memory Vault State
+  const [copilotMode, setCopilotMode] = useState('chat'); // 'chat' | 'vault'
+  const [memories, setMemories] = useState([]);
+  const [loadingMemories, setLoadingMemories] = useState(false);
+  const [memorySearch, setMemorySearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [showMemoryModal, setShowMemoryModal] = useState(false);
+  const [editingMemory, setEditingMemory] = useState(null);
+  const [memoryForm, setMemoryForm] = useState({
+    title: '',
+    category: 'STREAK_TIMING',
+    content: '',
+    is_active: true,
+  });
+  const [lastSavedNotification, setLastSavedNotification] = useState(null);
+
   useEffect(() => {
     fetchAIStatus();
     fetchSessions();
+    fetchMemories();
   }, []);
 
   useEffect(() => {
@@ -213,6 +238,92 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
     setEditingSessionId(null);
   };
 
+  const fetchMemories = async () => {
+    setLoadingMemories(true);
+    try {
+      const res = await axios.get(`${API_BASE}/ai/memories/`);
+      setMemories(res.data.memories || []);
+    } catch (err) {
+      console.error('Failed to fetch discovery memories:', err);
+    } finally {
+      setLoadingMemories(false);
+    }
+  };
+
+  const handleToggleMemory = async (memoryId, currentActive) => {
+    try {
+      await axios.patch(`${API_BASE}/ai/memories/${memoryId}/`, {
+        is_active: !currentActive,
+      });
+      setMemories(prev =>
+        prev.map(m => (m.id === memoryId ? { ...m, is_active: !currentActive } : m))
+      );
+    } catch (err) {
+      console.error('Failed to toggle memory active status:', err);
+    }
+  };
+
+  const handleDeleteMemory = async (memoryId) => {
+    if (!window.confirm('Delete this discovery memory from the permanent vault?')) return;
+    try {
+      await axios.delete(`${API_BASE}/ai/memories/${memoryId}/`);
+      setMemories(prev => prev.filter(m => m.id !== memoryId));
+    } catch (err) {
+      console.error('Failed to delete discovery memory:', err);
+    }
+  };
+
+  const handleOpenAddMemory = (prefillTitle = '', prefillContent = '', prefillCategory = 'GENERAL') => {
+    setEditingMemory(null);
+    setMemoryForm({
+      title: prefillTitle,
+      category: prefillCategory,
+      content: prefillContent,
+      is_active: true,
+    });
+    setShowMemoryModal(true);
+  };
+
+  const handleOpenEditMemory = (mem) => {
+    setEditingMemory(mem);
+    setMemoryForm({
+      title: mem.title,
+      category: mem.category,
+      content: mem.content,
+      is_active: mem.is_active,
+    });
+    setShowMemoryModal(true);
+  };
+
+  const handleSaveMemoryModal = async (e) => {
+    e.preventDefault();
+    if (!memoryForm.title.trim() || !memoryForm.content.trim()) return;
+
+    try {
+      if (editingMemory) {
+        const res = await axios.patch(`${API_BASE}/ai/memories/${editingMemory.id}/`, memoryForm);
+        setMemories(prev => prev.map(m => (m.id === editingMemory.id ? res.data : m)));
+      } else {
+        const res = await axios.post(`${API_BASE}/ai/memories/`, {
+          ...memoryForm,
+          platform: currentPlatform || 'ilotbet',
+          game: currentGame || 'best_aviator',
+          source_session: activeSessionId,
+        });
+        setMemories(prev => [res.data, ...prev]);
+      }
+      setShowMemoryModal(false);
+      setEditingMemory(null);
+    } catch (err) {
+      alert('Failed to save memory: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleQuickSaveMessage = (msgText) => {
+    const defaultTitle = msgText.slice(0, 45).replace(/[#*`]/g, '').trim();
+    handleOpenAddMemory(defaultTitle || 'Key Swarm Insight', msgText, 'STRATEGY_RULE');
+  };
+
   const handleRunRiskAnalysis = async () => {
     setAnalyzingRisk(true);
     setRiskData(null);
@@ -308,6 +419,13 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
         }
       ]);
 
+      // If backend captured and created an AIDiscoveryMemory, update our state & alert user
+      if (res.data.saved_memory) {
+        setMemories(prev => [res.data.saved_memory, ...prev.filter(m => m.id !== res.data.saved_memory.id)]);
+        setLastSavedNotification(res.data.saved_memory.title);
+        setTimeout(() => setLastSavedNotification(null), 6000);
+      }
+
       // Refresh session list to update titles/timestamps
       const sessListRes = await axios.get(`${API_BASE}/ai/chats/`);
       setSessions(sessListRes.data.sessions || []);
@@ -341,12 +459,56 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
     return <TrendingUp className="w-4 h-4 text-emerald-400" />;
   };
 
+  const getCategoryBadge = (cat) => {
+    switch (cat) {
+      case 'STREAK_TIMING': return 'text-blue-400 bg-blue-950/40 border-blue-800/60';
+      case 'CLUSTER_PATTERN': return 'text-purple-400 bg-purple-950/40 border-purple-800/60';
+      case 'STRATEGY_RULE': return 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60';
+      case 'RISK_LIMIT': return 'text-rose-400 bg-rose-950/40 border-rose-800/60';
+      case 'MARKET_INSIGHT': return 'text-amber-400 bg-amber-950/40 border-amber-800/60';
+      default: return 'text-gray-300 bg-gray-900 border-gray-700';
+    }
+  };
+
   const activeSessionObj = sessions.find(s => s.id === activeSessionId);
+  const activeMemoriesCount = memories.filter(m => m.is_active).length;
+
+  const filteredMemories = memories.filter(m => {
+    const matchesCat = selectedCategory === 'ALL' || m.category === selectedCategory;
+    const matchesSearch = !memorySearch || 
+      m.title?.toLowerCase().includes(memorySearch.toLowerCase()) || 
+      m.content?.toLowerCase().includes(memorySearch.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Toast Notification when a discovery is saved */}
+      {lastSavedNotification && (
+        <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-900/90 to-indigo-900/90 border border-purple-400/50 shadow-2xl flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500 flex items-center justify-center text-white shadow-md">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>Discovery Saved to Permanent Swarm Memory!</span>
+                <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/40 text-purple-300 font-mono">ACTIVE</span>
+              </div>
+              <p className="text-[11px] text-purple-200 truncate max-w-md">"{lastSavedNotification}"</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setCopilotMode('vault')}
+            className="px-3 py-1.5 bg-white text-purple-900 font-bold rounded-xl text-xs hover:bg-purple-100 transition-all shadow-md shrink-0"
+          >
+            Open Memory Vault
+          </button>
+        </div>
+      )}
+
       {/* Top AI Model & Provider Header Deck */}
-      <div className="glass-card p-5 rounded-2xl border border-gray-800 bg-gradient-to-r from-gray-900/90 via-gray-900/50 to-purple-950/20">
+      <div className="glass-card p-5 rounded-2xl border border-gray-800 bg-gradient-to-r from-gray-900/90 via-gray-900/50 to-purple-950/20 space-y-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -354,19 +516,50 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-wide">AI Staking Copilot & Multi-Thread Memory</h2>
+                <h2 className="text-base font-bold text-white tracking-wide">AI Staking Copilot & Knowledge Vault</h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  CROSS-SESSION MEMORY
+                  {activeMemoriesCount} ACTIVE DISCOVERIES
                 </span>
               </div>
               <p className="text-xs text-gray-400">
-                Grounds predictive loss-clustering models directly against live telemetry and recalls past chat discussions.
+                Grounds predictive loss-clustering models against live telemetry and permanent saved discovery rules.
               </p>
             </div>
           </div>
 
-          {/* Provider & Model Selectors */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+          {/* Sub-View Switcher (Chat vs Knowledge Vault) */}
+          <div className="flex items-center bg-gray-950/90 p-1 rounded-xl border border-gray-800 shadow-inner">
+            <button
+              onClick={() => setCopilotMode('chat')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                copilotMode === 'chat'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Copilot Chat</span>
+            </button>
+            <button
+              onClick={() => setCopilotMode('vault')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                copilotMode === 'vault'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-300" />
+              <span>Memory Vault</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-black/40 text-purple-200">
+                {memories.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Provider & Model Selectors (Deck Bar) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-800/80">
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* Provider Switcher */}
             <div className="flex items-center bg-gray-950/80 p-1 rounded-xl border border-gray-800">
               <button
@@ -414,8 +607,9 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                 </select>
               )}
             </div>
+          </div>
 
-            {/* Run Analysis Buttons */}
+          <div className="flex items-center gap-2">
             <button
               onClick={handleRunRiskAnalysis}
               disabled={analyzingRisk}
@@ -437,7 +631,9 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
         </div>
       </div>
 
-      {/* Main Grid: Left Side (Risk & Strategy) | Right Side (Copilot Chat with Thread Sessions) */}
+
+      {/* Main Mode View: Either Copilot Chat with Radar OR Full Memory Vault */}
+      {copilotMode === 'chat' ? (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Intelligence Cards (6 cols) */}
         <div className="lg:col-span-6 space-y-6">
@@ -720,6 +916,40 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                           {msg.text}
                         </ReactMarkdown>
                       </div>
+
+                      {/* If this response triggered a memory save, show glowing badge */}
+                      {msg.metadata?.saved_memory && (
+                        <div className="mt-2.5 p-2.5 rounded-xl bg-purple-950/80 border border-purple-400/40 text-[11px] text-purple-200 flex items-center justify-between animate-in fade-in shadow-lg">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-purple-300 shrink-0" />
+                            <div>
+                              <span className="font-bold text-white block">Saved to Permanent Memory Vault:</span>
+                              <span className="text-purple-200">{msg.metadata.saved_memory.title}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setCopilotMode('vault')}
+                            className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] transition-all shrink-0 ml-2"
+                          >
+                            View Vault
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Quick Action Toolbar on Assistant Messages */}
+                      {msg.role !== 'user' && (
+                        <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-500">
+                          <button
+                            onClick={() => handleQuickSaveMessage(msg.text)}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-purple-900/40 hover:text-purple-300 text-gray-400 transition-colors"
+                            title="Save this finding to permanent Swarm memory"
+                          >
+                            <BookmarkPlus className="w-3 h-3 text-purple-400" />
+                            <span>Save to Memory</span>
+                          </button>
+                          <span>{msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -741,6 +971,27 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
               {/* Bottom Quick Chips */}
               <div className="p-2 px-4 flex flex-wrap gap-1.5 border-t border-gray-850 bg-gray-950/60">
                 <button
+                  onClick={() => setUserInput('What time of day did all the 5-in-a-row and 6-in-a-row loss streaks happen?')}
+                  className="px-2 py-1 bg-gray-900 hover:bg-gray-850 text-blue-300 hover:text-white rounded-lg text-[10px] transition-colors border border-blue-900/40 flex items-center gap-1"
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>5+ Streak Hours</span>
+                </button>
+                <button
+                  onClick={() => setUserInput('Save our current loss streak timing finding to permanent memory')}
+                  className="px-2 py-1 bg-gray-900 hover:bg-gray-850 text-purple-300 hover:text-white rounded-lg text-[10px] transition-colors border border-purple-900/40 flex items-center gap-1"
+                >
+                  <BookmarkPlus className="w-3 h-3" />
+                  <span>Save Finding to Memory</span>
+                </button>
+                <button
+                  onClick={() => setUserInput('What discoveries and strategic rules do we have saved in our memory vault?')}
+                  className="px-2 py-1 bg-gray-900 hover:bg-gray-850 text-emerald-300 hover:text-white rounded-lg text-[10px] transition-colors border border-emerald-900/40 flex items-center gap-1"
+                >
+                  <Database className="w-3 h-3" />
+                  <span>Recall Memory Vault</span>
+                </button>
+                <button
                   onClick={() => setUserInput('What is our current risk profile across the last 100 rounds?')}
                   className="px-2 py-1 bg-gray-900 hover:bg-gray-850 text-gray-400 hover:text-white rounded-lg text-[10px] transition-colors border border-gray-800"
                 >
@@ -751,12 +1002,6 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                   className="px-2 py-1 bg-gray-900 hover:bg-gray-850 text-gray-400 hover:text-white rounded-lg text-[10px] transition-colors border border-gray-800"
                 >
                   1.35x vs 1.50x EV
-                </button>
-                <button
-                  onClick={() => setUserInput('Review our past conversations: what advice did we agree on?')}
-                  className="px-2 py-1 bg-gray-900 hover:bg-gray-850 text-purple-300 hover:text-white rounded-lg text-[10px] transition-colors border border-purple-900/40"
-                >
-                  Recall Past Threads
                 </button>
               </div>
 
@@ -781,6 +1026,267 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
           </div>
         </div>
       </div>
+      ) : (
+        /* Knowledge & Discovery Memory Vault View */
+        <div className="glass-card p-6 border border-gray-800 rounded-2xl space-y-6">
+          {/* Vault Top Bar */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-gray-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-base font-bold text-white tracking-wide">
+                  Swarm Knowledge & Discovery Memory Vault
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  {activeMemoriesCount} Active / {memories.length} Total
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Permanent empirical discoveries, loss-streak timing observations, and custom strategic rules. Active discoveries are automatically injected into the AI Swarm's reasoning engine.
+              </p>
+            </div>
+
+            <button
+              onClick={() => handleOpenAddMemory('', '', 'STREAK_TIMING')}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Discovery</span>
+            </button>
+          </div>
+
+          {/* Search & Category Filter Deck */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { id: 'ALL', label: 'All Discoveries' },
+                { id: 'STREAK_TIMING', label: 'Streak Timing' },
+                { id: 'CLUSTER_PATTERN', label: 'Cluster Patterns' },
+                { id: 'STRATEGY_RULE', label: 'Strategy Rules' },
+                { id: 'RISK_LIMIT', label: 'Risk Limits' },
+                { id: 'MARKET_INSIGHT', label: 'Market Insights' },
+                { id: 'GENERAL', label: 'General' },
+              ].map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    selectedCategory === cat.id
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-gray-900 text-gray-400 hover:text-gray-200 border border-gray-800'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative min-w-[240px]">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={memorySearch}
+                onChange={(e) => setMemorySearch(e.target.value)}
+                placeholder="Search discoveries & rules..."
+                className="w-full bg-gray-950/80 border border-gray-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Memories Cards Grid */}
+          {loadingMemories ? (
+            <div className="py-16 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+              <span>Loading Swarm Memory Vault...</span>
+            </div>
+          ) : filteredMemories.length === 0 ? (
+            <div className="py-16 text-center text-xs text-gray-500 space-y-3 bg-gray-950/40 rounded-2xl border border-gray-850">
+              <BookOpen className="w-8 h-8 text-gray-600 mx-auto" />
+              <p className="text-sm font-medium text-gray-400">No discovery memories found in this category.</p>
+              <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                While chatting with the Copilot, say <em>"save that to memory"</em>, or click "Add New Discovery" above to record strategic findings.
+              </p>
+              <button
+                onClick={() => handleOpenAddMemory('', '', 'STREAK_TIMING')}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all"
+              >
+                Create First Discovery
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredMemories.map(mem => (
+                <div
+                  key={mem.id}
+                  className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                    mem.is_active
+                      ? 'bg-gray-900/80 border-gray-800 hover:border-purple-500/40 shadow-lg'
+                      : 'bg-gray-950/40 border-gray-855 opacity-60'
+                  }`}
+                >
+                  <div className="space-y-2.5">
+                    {/* Card Header: Category & Active Toggle */}
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border ${getCategoryBadge(mem.category)}`}>
+                        {mem.category?.replace('_', ' ')}
+                      </span>
+
+                      <button
+                        onClick={() => handleToggleMemory(mem.id, mem.is_active)}
+                        className={`flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-colors ${
+                          mem.is_active
+                            ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60'
+                            : 'text-gray-400 bg-gray-900 border-gray-800'
+                        }`}
+                        title={mem.is_active ? "Memory is ACTIVE: fed to AI swarm. Click to disable." : "Memory is DISABLED. Click to activate."}
+                      >
+                        {mem.is_active ? <ToggleRight className="w-3.5 h-3.5 text-emerald-400" /> : <ToggleLeft className="w-3.5 h-3.5 text-gray-500" />}
+                        <span>{mem.is_active ? 'ACTIVE' : 'DISABLED'}</span>
+                      </button>
+                    </div>
+
+                    {/* Title */}
+                    <h4 className="text-sm font-bold text-white tracking-wide">
+                      {mem.title}
+                    </h4>
+
+                    {/* Content (Rendered Markdown) */}
+                    <div className="react-markdown-prose text-xs text-gray-300 leading-relaxed bg-gray-950/60 p-3 rounded-xl border border-gray-850 max-h-48 overflow-y-auto">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {mem.content}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Metadata & Actions */}
+                  <div className="pt-2 border-t border-gray-850 flex items-center justify-between text-[10px] text-gray-500">
+                    <div className="flex items-center gap-1 font-mono">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                      <span>{mem.created_at?.slice(0, 10)}</span>
+                      {mem.source_session_title && (
+                        <span className="truncate max-w-[110px]" title={mem.source_session_title}>
+                          • {mem.source_session_title}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEditMemory(mem)}
+                        className="p-1 hover:text-purple-400 text-gray-400 transition-colors"
+                        title="Edit discovery"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMemory(mem.id)}
+                        className="p-1 hover:text-rose-400 text-gray-400 transition-colors"
+                        title="Delete discovery"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Discovery Memory Save/Edit Modal */}
+      {showMemoryModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass-card p-6 rounded-2xl border border-purple-500/40 bg-gray-900 w-full max-w-lg space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <BookmarkPlus className="w-5 h-5 text-purple-400" />
+                <h3 className="text-sm font-bold text-white tracking-wide">
+                  {editingMemory ? 'Edit Discovery Memory' : 'Save Discovery to Swarm Vault'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowMemoryModal(false)}
+                className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMemoryModal} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">Discovery Title:</label>
+                <input
+                  type="text"
+                  required
+                  value={memoryForm.title}
+                  onChange={(e) => setMemoryForm({ ...memoryForm, title: e.target.value })}
+                  placeholder="e.g., 5-in-a-row Loss Streaks Peak at 14:00 UTC"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">Category:</label>
+                <select
+                  value={memoryForm.category}
+                  onChange={(e) => setMemoryForm({ ...memoryForm, category: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="STREAK_TIMING">Streak Timing & Hour Analysis</option>
+                  <option value="CLUSTER_PATTERN">Cluster & Loss Pattern</option>
+                  <option value="STRATEGY_RULE">Staking & Cashout Rule</option>
+                  <option value="RISK_LIMIT">Risk & Drawdown Barrier</option>
+                  <option value="MARKET_INSIGHT">Market Observation</option>
+                  <option value="GENERAL">General Discovery</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">Discovery Content / Takeaway (Markdown supported):</label>
+                <textarea
+                  rows={5}
+                  required
+                  value={memoryForm.content}
+                  onChange={(e) => setMemoryForm({ ...memoryForm, content: e.target.value })}
+                  placeholder="Describe the finding, observed hours, multiplier rules, or expected value advice..."
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-mono text-xs leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+                <label className="flex items-center gap-2 cursor-pointer text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={memoryForm.is_active}
+                    onChange={(e) => setMemoryForm({ ...memoryForm, is_active: e.target.checked })}
+                    className="accent-purple-600 rounded"
+                  />
+                  <span>Active (Directly influence AI Swarm decisions)</span>
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowMemoryModal(false)}
+                    className="px-3 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold shadow-md shadow-purple-600/20 transition-all"
+                  >
+                    {editingMemory ? 'Update Memory' : 'Save to Vault'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

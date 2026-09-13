@@ -14,7 +14,7 @@ from .prompts.strategy_advisor_prompt import STRATEGY_SYSTEM_PROMPT, format_stra
 from .prompts.market_chat_prompt import get_chat_system_prompt
 from .parsers.json_extractor import extract_json
 from .agents.swarm_coordinator import SwarmCoordinator
-from .context.chat_memory_builder import build_chat_memory_context
+from .context.chat_memory_builder import build_chat_memory_context, build_discovery_memories_context
 
 logger = logging.getLogger("aviator_bot.ai.engine")
 
@@ -112,8 +112,9 @@ class AIEngine:
         current_messages: list[dict[str, Any]] | None = None,
         past_sessions_summary: list[dict[str, Any]] | None = None,
         swarm_consensus: dict[str, Any] | None = None,
+        discovery_memories: list[dict[str, Any]] | None = None,
     ) -> str:
-        """Interactive conversation with Multi-Agent Swarm grounded in live odds and cross-session memory."""
+        """Interactive conversation with Multi-Agent Swarm grounded in live odds, streak hours, and discovery memory."""
         target_odds = 1.50
         summary = build_odds_summary(odds_records, target_odds=target_odds)
         context_str = f"""
@@ -124,11 +125,14 @@ class AIEngine:
 - Current Loss Streak: {summary['current_loss_streak']}
 - Recent 15 Multipliers: {summary['recent_multipliers']}
 - Loss Streak Clusters: {json.dumps(summary['loss_cluster_distribution'])}
+- Long Loss Streaks (>=4 in a row): {summary.get('streak_timing_summary')}
+- Hourly Loss Streak (>=4) Occurrences: {json.dumps(summary.get('hourly_streak_distribution', {}))}
 """
         memory_str = build_chat_memory_context(
             current_session_messages=current_messages or [],
             past_sessions_summary=past_sessions_summary,
         )
+        discovery_str = build_discovery_memories_context(discovery_memories)
 
         swarm_str = ""
         if swarm_consensus:
@@ -143,6 +147,7 @@ class AIEngine:
             odds_context=context_str,
             memory_context=memory_str,
             swarm_context=swarm_str,
+            discovery_context=discovery_str,
         )
         client = self.get_provider_client(config.provider)
 
@@ -153,4 +158,5 @@ class AIEngine:
             api_key=config.api_key,
             temperature=0.4,
         )
+
 

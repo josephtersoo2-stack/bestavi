@@ -199,3 +199,40 @@ class AIChatMessage(models.Model):
     def __str__(self) -> str:
         return f"{self.sender_name} ({self.role}): {self.content[:50]}"
 
+
+class AIDiscoveryMemory(models.Model):
+    CATEGORY_CHOICES = [
+        ("STREAK_TIMING", "Streak Timing & Hour Analysis"),
+        ("CLUSTER_PATTERN", "Cluster & Loss Pattern"),
+        ("STRATEGY_RULE", "Staking & Cashout Rule"),
+        ("RISK_LIMIT", "Risk & Drawdown Barrier"),
+        ("MARKET_INSIGHT", "Market Observation"),
+        ("GENERAL", "General Discovery"),
+    ]
+
+    title = models.CharField(max_length=255, db_index=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="GENERAL", db_index=True)
+    content = models.TextField(help_text="Empirical finding, pattern rule, or timing discovery")
+    evidence_data = models.JSONField(default=dict, blank=True, help_text="Supporting telemetry metrics (hours, streak length, etc.)")
+    source_session = models.ForeignKey(
+        AIChatSession,
+        related_name="memories",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True
+    )
+    platform = models.CharField(max_length=50, default="ilotbet", db_index=True)
+    game = models.CharField(max_length=50, default="best_aviator", db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True, help_text="Fed into active Swarm reasoning if True")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        ordering = ["-is_active", "-updated_at"]
+        verbose_name = "AI Discovery Memory"
+        verbose_name_plural = "AI Discovery Memories"
+
+    def __str__(self) -> str:
+        return f"[{self.category}] {self.title} ({'Active' if self.is_active else 'Disabled'})"
+

@@ -1,5 +1,13 @@
 from rest_framework import serializers
-from .models import BotConfig, ExtractedOdds, BetRecord, BotLog, AIChatSession, AIChatMessage
+from .models import (
+    BotConfig,
+    ExtractedOdds,
+    BetRecord,
+    BotLog,
+    AIChatSession,
+    AIChatMessage,
+    AIDiscoveryMemory,
+)
 from .security import mask_sensitive_url
 
 
@@ -162,4 +170,26 @@ class AIChatSessionSerializer(serializers.ModelSerializer):
                 'created_at': last.created_at
             }
         return None
+
+
+class AIDiscoveryMemorySerializer(serializers.ModelSerializer):
+    source_session_title = serializers.ReadOnlyField(source="source_session.title")
+
+    class Meta:
+        model = AIDiscoveryMemory
+        fields = [
+            "id",
+            "title",
+            "category",
+            "content",
+            "evidence_data",
+            "source_session",
+            "source_session_title",
+            "platform",
+            "game",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
