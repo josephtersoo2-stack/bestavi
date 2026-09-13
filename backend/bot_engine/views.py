@@ -322,6 +322,7 @@ class SafeZoneAnalyticsView(APIView):
                     "max_mult": m,
                     "cur_loss_streak": 0,
                     "max_loss_streak": 0,
+                    "loss_streaks": [],
                     "cur_loss_rounds": [],
                     "streak_incidents": [],
                 }
@@ -331,7 +332,9 @@ class SafeZoneAnalyticsView(APIView):
                 d["max_mult"] = m
             if is_safe:
                 d["wins"] += 1
-                if d["cur_loss_streak"] >= 4:
+                if d["cur_loss_streak"] > 0:
+                    d["loss_streaks"].append(d["cur_loss_streak"])
+                if d["cur_loss_streak"] >= 3:
                     rounds_copy = list(d["cur_loss_rounds"])
                     incident = {
                         "incident_id": len(d["streak_incidents"]) + 1,
@@ -380,9 +383,11 @@ class SafeZoneAnalyticsView(APIView):
         if cur_win_streak > 0:
             win_streaks_list.append(cur_win_streak)
 
-        # Check if any day has an active ongoing streak of >= 4 at final round
+        # Check if any day has an active ongoing streak at final round
         for date_str, d in daily_stats.items():
-            if d.get("cur_loss_streak", 0) >= 4 and d.get("cur_loss_rounds"):
+            if d.get("cur_loss_streak", 0) > 0:
+                d["loss_streaks"].append(d["cur_loss_streak"])
+            if d.get("cur_loss_streak", 0) >= 3 and d.get("cur_loss_rounds"):
                 rounds_copy = list(d["cur_loss_rounds"])
                 incident = {
                     "incident_id": len(d["streak_incidents"]) + 1,
@@ -415,7 +420,10 @@ class SafeZoneAnalyticsView(APIView):
             win_pct = round((d["wins"] / d["total"] * 100), 1) if d["total"] > 0 else 0.0
             incidents = d.get("streak_incidents", [])
             count_5plus = sum(1 for inc in incidents if inc["streak_length"] >= 5)
-            count_4plus = len(incidents)
+            count_4plus = sum(1 for inc in incidents if inc["streak_length"] >= 4)
+            count_3plus = len(incidents)
+            max_s = d["max_loss_streak"]
+            max_s_occurrences = sum(1 for s in d.get("loss_streaks", []) if s == max_s) if max_s > 0 else 0
             daily_breakdown.append({
                 "date": date_str,
                 "total_rounds": d["total"],
@@ -423,11 +431,13 @@ class SafeZoneAnalyticsView(APIView):
                 "losszone_losses": d["losses"],
                 "win_rate": win_pct,
                 "loss_rate": round(100.0 - win_pct, 1),
-                "max_loss_streak": d["max_loss_streak"],
+                "max_loss_streak": max_s,
+                "max_loss_streak_occurrences": max_s_occurrences,
                 "peak_multiplier": round(d["max_mult"], 2),
                 "streak_incidents": incidents,
                 "count_5plus_streaks": count_5plus,
                 "count_4plus_streaks": count_4plus,
+                "count_3plus_streaks": count_3plus,
             })
 
         total_wins = sum(1 for item in odds_list if item["multiplier"] >= target_odds)

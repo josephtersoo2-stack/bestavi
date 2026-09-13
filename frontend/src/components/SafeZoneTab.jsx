@@ -842,13 +842,44 @@ export default function SafeZoneTab() {
                 const allIncidents = row.streak_incidents || [];
                 const incidents5Plus = allIncidents.filter(inc => inc.streak_length >= 5);
                 const incidents4Plus = allIncidents.filter(inc => inc.streak_length >= 4);
+                const incidents3Plus = allIncidents.filter(inc => inc.streak_length >= 3);
 
-                // Auto-fallback if filtering for 5+ but there are only 4-loss streaks on this day
-                const effectiveFilter = (incidentFilter === '5plus' && incidents5Plus.length === 0 && incidents4Plus.length > 0)
-                  ? '4plus'
-                  : incidentFilter;
+                // Auto-fallback if filtering for 5+ but there are only 4-loss or 3-loss streaks on this day
+                let effectiveFilter = incidentFilter;
+                if (incidentFilter === '5plus' && incidents5Plus.length === 0) {
+                  if (incidents4Plus.length > 0) effectiveFilter = '4plus';
+                  else if (incidents3Plus.length > 0) effectiveFilter = '3plus';
+                }
 
-                const displayIncidents = effectiveFilter === '5plus' ? incidents5Plus : incidents4Plus;
+                const displayIncidents = effectiveFilter === '5plus' 
+                  ? incidents5Plus 
+                  : effectiveFilter === '4plus' 
+                  ? incidents4Plus 
+                  : incidents3Plus;
+
+                // Determine today vs yesterday for the occurrences label ("1 time today or 2 times today etc.")
+                const localToday = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const todayStr = `${localToday.getFullYear()}-${pad(localToday.getMonth() + 1)}-${pad(localToday.getDate())}`;
+                const yest = new Date(localToday);
+                yest.setDate(yest.getDate() - 1);
+                const yestStr = `${yest.getFullYear()}-${pad(yest.getMonth() + 1)}-${pad(yest.getDate())}`;
+
+                const occurrences = row.max_loss_streak_occurrences ?? (
+                  allIncidents.filter(inc => inc.streak_length === row.max_loss_streak).length || 1
+                );
+
+                let timesLabel = '';
+                if (row.max_loss_streak > 0) {
+                  const timesWord = occurrences === 1 ? '1 time' : `${occurrences} times`;
+                  if (row.date === todayStr) {
+                    timesLabel = ` ${timesWord} today`;
+                  } else if (row.date === yestStr) {
+                    timesLabel = ` ${timesWord} yesterday`;
+                  } else {
+                    timesLabel = ` ${timesWord}`;
+                  }
+                }
 
                 return (
                   <React.Fragment key={row.date || idx}>
@@ -913,7 +944,7 @@ export default function SafeZoneTab() {
                               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
                               : 'bg-emerald-500/10 text-emerald-400'
                           }`}>
-                            {row.max_loss_streak} losses in a roll
+                            {row.max_loss_streak} losses in a roll{timesLabel}
                           </span>
                           <span className="text-[10px] font-mono text-gray-400 underline decoration-dotted">
                             {isExpanded ? 'Hide' : 'Inspect'}
@@ -938,7 +969,7 @@ export default function SafeZoneTab() {
                                   Loss Streak Incidents on {row.date}
                                 </h5>
                                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                                  Max: {row.max_loss_streak} in a roll
+                                  Max: {row.max_loss_streak} in a roll{timesLabel}
                                 </span>
                               </div>
                               <p className="text-xs text-gray-400 mt-1">
@@ -973,6 +1004,21 @@ export default function SafeZoneTab() {
                                 <Zap className="w-3.5 h-3.5" />
                                 All 4+ in a Roll ({incidents4Plus.length})
                               </button>
+
+                              {incidents3Plus.length > incidents4Plus.length && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setIncidentFilter('3plus'); }}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                    effectiveFilter === '3plus'
+                                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                                      : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                                  }`}
+                                >
+                                  <Layers className="w-3.5 h-3.5" />
+                                  All 3+ in a Roll ({incidents3Plus.length})
+                                </button>
+                              )}
                             </div>
                           </div>
 
