@@ -24,7 +24,10 @@ import {
   Layers,
   Grid,
   ShieldAlert,
-  Info
+  Info,
+  Clock,
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
 import { API_BASE } from '../config';
 
@@ -102,6 +105,8 @@ export default function SafeZoneTab() {
   const [searchFilter, setSearchFilter] = useState('');
   const [clusterTier, setClusterTier] = useState(1); // 1 = 1-5, 2 = 6-10, 3 = 11-15, 4 = 16-20+
   const [showAllClusters, setShowAllClusters] = useState(false);
+  const [expandedDate, setExpandedDate] = useState(null);
+  const [incidentFilter, setIncidentFilter] = useState('5plus'); // '5plus' | '4plus'
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -822,7 +827,7 @@ export default function SafeZoneTab() {
           <table className="w-full text-left text-xs">
             <thead className="bg-gray-950/80 text-gray-400 font-mono uppercase text-[10px] tracking-wider border-b border-gray-800">
               <tr>
-                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Date (Click to Inspect)</th>
                 <th className="py-3 px-4 text-center">Total Games</th>
                 <th className="py-3 px-4 text-center">SafeZone Paid (≥ {targetOdds}x)</th>
                 <th className="py-3 px-4 text-center">LossZone Deficit (&lt; {targetOdds}x)</th>
@@ -832,54 +837,259 @@ export default function SafeZoneTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/60 font-mono">
-              {(data?.daily_breakdown || []).map((row, idx) => (
-                <tr key={idx} className="hover:bg-gray-800/40 transition-colors">
-                  <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
-                    <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                    <span>{row.date}</span>
-                  </td>
-                  <td className="py-3.5 px-4 text-center text-gray-300 font-bold">
-                    {row.total_rounds}
-                  </td>
-                  <td className="py-3.5 px-4 text-center">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {row.safezone_wins} ({row.win_rate}%)
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-center">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                      {row.losszone_losses} ({row.loss_rate}%)
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div className="w-28 space-y-1">
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-emerald-400 font-bold">{row.win_rate}%</span>
-                      </div>
-                      <div className="w-full bg-gray-950 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                          className="bg-emerald-400 h-full rounded-full" 
-                          style={{ width: `${row.win_rate}%` }} 
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-4 text-center">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      row.max_loss_streak >= 5 
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
-                        : row.max_loss_streak >= 3 
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
-                        : 'bg-emerald-500/10 text-emerald-400'
-                    }`}>
-                      {row.max_loss_streak} losses in a roll
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-bold text-amber-400">
-                    {row.peak_multiplier}x
-                  </td>
-                </tr>
-              ))}
+              {(data?.daily_breakdown || []).map((row, idx) => {
+                const isExpanded = expandedDate === row.date;
+                const allIncidents = row.streak_incidents || [];
+                const incidents5Plus = allIncidents.filter(inc => inc.streak_length >= 5);
+                const incidents4Plus = allIncidents.filter(inc => inc.streak_length >= 4);
+
+                // Auto-fallback if filtering for 5+ but there are only 4-loss streaks on this day
+                const effectiveFilter = (incidentFilter === '5plus' && incidents5Plus.length === 0 && incidents4Plus.length > 0)
+                  ? '4plus'
+                  : incidentFilter;
+
+                const displayIncidents = effectiveFilter === '5plus' ? incidents5Plus : incidents4Plus;
+
+                return (
+                  <React.Fragment key={row.date || idx}>
+                    <tr 
+                      onClick={() => setExpandedDate(isExpanded ? null : row.date)}
+                      className={`cursor-pointer transition-all border-b border-gray-800/60 ${
+                        isExpanded 
+                          ? 'bg-rose-950/20 border-l-4 border-l-rose-500 hover:bg-rose-950/30' 
+                          : 'hover:bg-gray-800/40'
+                      }`}
+                      title="Click row to inspect all consecutive loss streak incidents for this date"
+                    >
+                      <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
+                        <span className={`p-1 rounded-md transition-transform ${isExpanded ? 'bg-rose-500/20 text-rose-300' : 'bg-gray-900 text-gray-500'}`}>
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          )}
+                        </span>
+                        <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="font-mono">{row.date}</span>
+                        {row.count_5plus_streaks > 0 && (
+                          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                            <Flame className="w-2.5 h-2.5 text-rose-400" />
+                            {row.count_5plus_streaks} (5+)
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-center text-gray-300 font-bold">
+                        {row.total_rounds}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {row.safezone_wins} ({row.win_rate}%)
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          {row.losszone_losses} ({row.loss_rate}%)
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="w-28 space-y-1">
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-emerald-400 font-bold">{row.win_rate}%</span>
+                          </div>
+                          <div className="w-full bg-gray-950 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className="bg-emerald-400 h-full rounded-full" 
+                              style={{ width: `${row.win_rate}%` }} 
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                            row.max_loss_streak >= 5 
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                              : row.max_loss_streak >= 3 
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                              : 'bg-emerald-500/10 text-emerald-400'
+                          }`}>
+                            {row.max_loss_streak} losses in a roll
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-400 underline decoration-dotted">
+                            {isExpanded ? 'Hide' : 'Inspect'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-bold text-amber-400">
+                        {row.peak_multiplier}x
+                      </td>
+                    </tr>
+
+                    {/* Expandable Loss Streak Incidents Breakdown Drawer */}
+                    {isExpanded && (
+                      <tr className="bg-gray-950/95 border-b-2 border-rose-500/40">
+                        <td colSpan="7" className="p-4 sm:p-6 space-y-4">
+                          {/* Drawer Header & Controls */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-800">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h5 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                                  <Flame className="w-4 h-4 text-rose-500" />
+                                  Loss Streak Incidents on {row.date}
+                                </h5>
+                                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                  Max: {row.max_loss_streak} in a roll
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Every consecutive losing run (&lt; {targetOdds}x) listed separately in chronological order with exact odds and timestamps.
+                              </p>
+                            </div>
+
+                            {/* Filter Switcher */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setIncidentFilter('5plus'); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                  effectiveFilter === '5plus'
+                                    ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30'
+                                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                                }`}
+                              >
+                                <Flame className="w-3.5 h-3.5" />
+                                5+ in a Roll ({incidents5Plus.length})
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setIncidentFilter('4plus'); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                  effectiveFilter === '4plus'
+                                    ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+                                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                                }`}
+                              >
+                                <Zap className="w-3.5 h-3.5" />
+                                All 4+ in a Roll ({incidents4Plus.length})
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Reassuring Banner if 0 5+ Loss Streaks Occurred */}
+                          {incidents5Plus.length === 0 && row.max_loss_streak < 5 && (
+                            <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl flex items-center gap-3 text-xs text-emerald-300 font-mono">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                              <span>
+                                <strong>Zero 5+ Loss Streaks Recorded!</strong> On this date, the maximum loss streak was safely contained at <strong>{row.max_loss_streak}</strong> consecutive losses. Displaying the <strong>{incidents4Plus.length}</strong> incident(s) of 4-in-a-row losses below:
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Separate Incident Cards */}
+                          {displayIncidents.length > 0 ? (
+                            <div className="space-y-4">
+                              {displayIncidents.map((incident) => (
+                                <div
+                                  key={incident.incident_id}
+                                  className="p-4 rounded-xl bg-gray-900/90 border border-gray-800/90 hover:border-gray-700 transition-all space-y-3.5 shadow-xl"
+                                >
+                                  {/* Incident Header */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-gray-800">
+                                    <div className="flex items-center gap-2.5">
+                                      <span className="px-2.5 py-1 rounded-md text-xs font-black tracking-wider uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm">
+                                        Incident #{incident.incident_id}
+                                      </span>
+                                      <span className="text-sm font-extrabold text-white flex items-center gap-1.5 font-mono">
+                                        <Flame className="w-4 h-4 text-rose-500" />
+                                        {incident.streak_length} Losses in a Roll
+                                      </span>
+                                      <span className="text-[11px] font-mono text-gray-400 bg-gray-950 px-2 py-0.5 rounded border border-gray-800">
+                                        Rounds #{incident.rounds[0]?.serial_number} → #{incident.rounds[incident.rounds.length - 1]?.serial_number}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 text-xs font-mono text-gray-400 bg-gray-950/80 px-3 py-1 rounded-lg border border-gray-800">
+                                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                      <span>
+                                        Time Window: <strong className="text-white">{incident.start_time}</strong> → <strong className="text-white">{incident.end_time}</strong>
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Serial Chain of Odds & Timestamps */}
+                                  <div>
+                                    <div className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                                      <Zap className="w-3 h-3 text-purple-400" />
+                                      <span>Serial Sequence of Loss Odds & Timestamps:</span>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                      {incident.rounds.map((rnd, rIdx) => (
+                                        <React.Fragment key={rnd.id || rIdx}>
+                                          <div className="flex flex-col items-center bg-gray-950 border border-rose-500/30 rounded-xl p-2.5 min-w-[95px] text-center shadow-md">
+                                            <span className="text-[10px] font-mono font-bold text-rose-400 uppercase tracking-tight">
+                                              Roll {rnd.step}
+                                            </span>
+                                            <span className={`text-lg font-black font-mono my-0.5 ${
+                                              parseFloat(rnd.multiplier) < 1.20 ? 'text-rose-400' : 'text-amber-400'
+                                            }`}>
+                                              {parseFloat(rnd.multiplier).toFixed(2)}x
+                                            </span>
+                                            <div className="flex items-center gap-1 text-[10px] font-mono text-gray-400">
+                                              <Clock className="w-2.5 h-2.5 text-gray-500" />
+                                              <span>{rnd.time}</span>
+                                            </div>
+                                            <span className="text-[9px] font-mono text-gray-500 mt-0.5">
+                                              Round #{rnd.serial_number}
+                                            </span>
+                                          </div>
+
+                                          {rIdx < incident.rounds.length - 1 && (
+                                            <ArrowRight className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                                          )}
+                                        </React.Fragment>
+                                      ))}
+
+                                      {/* Streak Recovery Badge */}
+                                      {incident.broken_by && (
+                                        <>
+                                          <div className="flex items-center text-emerald-400 px-1 font-bold">
+                                            <ArrowRight className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                                          </div>
+                                          <div className="flex flex-col items-center bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2.5 min-w-[105px] text-center shadow-md">
+                                            <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-tight flex items-center gap-1">
+                                              <CheckCircle2 className="w-3 h-3" /> Streak Broken
+                                            </span>
+                                            <span className="text-lg font-black font-mono my-0.5 text-emerald-300">
+                                              {parseFloat(incident.broken_by.multiplier).toFixed(2)}x
+                                            </span>
+                                            <div className="flex items-center gap-1 text-[10px] font-mono text-gray-400">
+                                              <Clock className="w-2.5 h-2.5 text-gray-500" />
+                                              <span>{incident.broken_by.time}</span>
+                                            </div>
+                                            <span className="text-[9px] font-mono text-emerald-400/80 mt-0.5">
+                                              Round #{incident.broken_by.serial_number}
+                                            </span>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-6 text-center text-gray-500 text-xs font-mono bg-gray-900/50 rounded-xl border border-gray-800">
+                              No {effectiveFilter === '5plus' ? '5+ consecutive loss' : 'loss'} incidents recorded for this day.
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
               {(!data?.daily_breakdown || data.daily_breakdown.length === 0) && (
                 <tr>
                   <td colSpan="7" className="py-8 text-center text-gray-500 text-xs font-mono">

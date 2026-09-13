@@ -322,6 +322,8 @@ class SafeZoneAnalyticsView(APIView):
                     "max_mult": m,
                     "cur_loss_streak": 0,
                     "max_loss_streak": 0,
+                    "cur_loss_rounds": [],
+                    "streak_incidents": [],
                 }
             d = daily_stats[date_str]
             d["total"] += 1
@@ -329,12 +331,37 @@ class SafeZoneAnalyticsView(APIView):
                 d["max_mult"] = m
             if is_safe:
                 d["wins"] += 1
+                if d["cur_loss_streak"] >= 4:
+                    rounds_copy = list(d["cur_loss_rounds"])
+                    incident = {
+                        "incident_id": len(d["streak_incidents"]) + 1,
+                        "streak_length": d["cur_loss_streak"],
+                        "start_time": rounds_copy[0]["time"],
+                        "end_time": rounds_copy[-1]["time"],
+                        "rounds": rounds_copy,
+                        "broken_by": {
+                            "serial_number": idx,
+                            "multiplier": m,
+                            "time": time_str,
+                            "timestamp": dt.isoformat(),
+                        },
+                    }
+                    d["streak_incidents"].append(incident)
                 d["cur_loss_streak"] = 0
+                d["cur_loss_rounds"] = []
             else:
                 d["losses"] += 1
                 d["cur_loss_streak"] += 1
                 if d["cur_loss_streak"] > d["max_loss_streak"]:
                     d["max_loss_streak"] = d["cur_loss_streak"]
+                d["cur_loss_rounds"].append({
+                    "serial_number": idx,
+                    "id": item["id"],
+                    "multiplier": m,
+                    "time": time_str,
+                    "timestamp": dt.isoformat(),
+                    "step": d["cur_loss_streak"],
+                })
 
             serial_rounds.append({
                 "serial_number": idx,
@@ -352,6 +379,20 @@ class SafeZoneAnalyticsView(APIView):
             loss_streaks_list.append(cur_loss_streak)
         if cur_win_streak > 0:
             win_streaks_list.append(cur_win_streak)
+
+        # Check if any day has an active ongoing streak of >= 4 at final round
+        for date_str, d in daily_stats.items():
+            if d.get("cur_loss_streak", 0) >= 4 and d.get("cur_loss_rounds"):
+                rounds_copy = list(d["cur_loss_rounds"])
+                incident = {
+                    "incident_id": len(d["streak_incidents"]) + 1,
+                    "streak_length": d["cur_loss_streak"],
+                    "start_time": rounds_copy[0]["time"],
+                    "end_time": rounds_copy[-1]["time"],
+                    "rounds": rounds_copy,
+                    "broken_by": None,
+                }
+                d["streak_incidents"].append(incident)
 
         # Consecutive loss cluster distribution (1 up to 20, plus 21+)
         streak_freq = {str(i): 0 for i in range(1, 21)}
@@ -372,6 +413,9 @@ class SafeZoneAnalyticsView(APIView):
         for date_str in sorted(daily_stats.keys(), reverse=True):
             d = daily_stats[date_str]
             win_pct = round((d["wins"] / d["total"] * 100), 1) if d["total"] > 0 else 0.0
+            incidents = d.get("streak_incidents", [])
+            count_5plus = sum(1 for inc in incidents if inc["streak_length"] >= 5)
+            count_4plus = len(incidents)
             daily_breakdown.append({
                 "date": date_str,
                 "total_rounds": d["total"],
@@ -381,6 +425,9 @@ class SafeZoneAnalyticsView(APIView):
                 "loss_rate": round(100.0 - win_pct, 1),
                 "max_loss_streak": d["max_loss_streak"],
                 "peak_multiplier": round(d["max_mult"], 2),
+                "streak_incidents": incidents,
+                "count_5plus_streaks": count_5plus,
+                "count_4plus_streaks": count_4plus,
             })
 
         total_wins = sum(1 for item in odds_list if item["multiplier"] >= target_odds)
