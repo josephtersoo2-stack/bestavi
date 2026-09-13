@@ -22,8 +22,13 @@ import {
   History,
   Lock,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { API_BASE } from '../config';
 
 export default function AICopilotTab({ currentPlatform, currentGame, onApplySettings }) {
@@ -45,6 +50,9 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [showSessionDrawer, setShowSessionDrawer] = useState(true);
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
+  
   const [chatMessages, setChatMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
@@ -176,6 +184,33 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
+  };
+
+  const handleStartRename = (e, session) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditTitleValue(session.title);
+  };
+
+  const handleSaveRename = async (e, sessionId) => {
+    e.stopPropagation();
+    if (!editTitleValue.trim()) {
+      setEditingSessionId(null);
+      return;
+    }
+    try {
+      await axios.patch(`${API_BASE}/ai/chats/${sessionId}/`, { title: editTitleValue.trim() });
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: editTitleValue.trim() } : s));
+    } catch (err) {
+      console.error('Failed to rename session:', err);
+    } finally {
+      setEditingSessionId(null);
+    }
+  };
+
+  const handleCancelRename = (e) => {
+    e.stopPropagation();
+    setEditingSessionId(null);
   };
 
   const handleRunRiskAnalysis = async () => {
@@ -593,28 +628,58 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                     return (
                       <div
                         key={s.id}
-                        onClick={() => loadSessionDetails(s.id)}
+                        onClick={() => { if (editingSessionId !== s.id) loadSessionDetails(s.id); }}
                         className={`p-2 rounded-xl cursor-pointer transition-all flex items-center justify-between group ${
                           isActive
                             ? 'bg-purple-600/20 text-purple-200 border border-purple-500/40'
                             : 'text-gray-400 hover:bg-gray-900 hover:text-gray-200 border border-transparent'
                         }`}
                       >
-                        <div className="min-w-0 pr-1">
-                          <div className="font-semibold text-xs truncate">
-                            {s.title}
+                        {editingSessionId === s.id ? (
+                          <div className="flex-1 flex items-center gap-1 min-w-0 pr-1">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editTitleValue}
+                              onChange={(e) => setEditTitleValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRename(e, s.id);
+                                if (e.key === 'Escape') handleCancelRename(e);
+                              }}
+                              className="flex-1 min-w-0 bg-gray-900 border border-purple-500 text-white rounded px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <button onClick={(e) => handleSaveRename(e, s.id)} className="text-emerald-400 hover:text-emerald-300 p-0.5 shrink-0"><Check className="w-3 h-3" /></button>
+                            <button onClick={handleCancelRename} className="text-gray-400 hover:text-gray-300 p-0.5 shrink-0"><X className="w-3 h-3" /></button>
                           </div>
-                          <div className="text-[10px] text-gray-500 font-mono">
-                            {s.message_count || 0} msgs • {s.updated_at?.slice(5, 10)}
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteSession(e, s.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"
-                          title="Delete thread"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        ) : (
+                          <>
+                            <div className="min-w-0 pr-1">
+                              <div className="font-semibold text-xs truncate">
+                                {s.title}
+                              </div>
+                              <div className="text-[10px] text-gray-500 font-mono">
+                                {s.message_count || 0} msgs • {s.updated_at?.slice(5, 10)}
+                              </div>
+                            </div>
+                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-0.5 shrink-0">
+                              <button
+                                onClick={(e) => handleStartRename(e, s)}
+                                className="p-1 hover:text-purple-400 transition-colors"
+                                title="Rename thread"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteSession(e, s.id)}
+                                className="p-1 hover:text-red-400 transition-colors"
+                                title="Delete thread"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
@@ -650,7 +715,11 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                           </span>
                         )}
                       </div>
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      <div className="react-markdown-prose whitespace-normal break-words leading-relaxed text-xs">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 ))}
