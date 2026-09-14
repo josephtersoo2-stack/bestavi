@@ -89,7 +89,7 @@ def calculate_loss_multiplier(target_odds: float) -> float:
     """Calculate the ideal Martingale loss multiplier for given target cashout odds."""
     if target_odds <= 1.0:
         return 2.0
-    return round(target_odds / (target_odds - 1.0), 2)
+    return round(target_odds / (target_odds - 1.0), 4)
 
 
 def make_strategy(name: str, multiplier: float = 2.0, target_odds: float = 1.5) -> Strategy:

@@ -160,7 +160,8 @@ export default function SafeZoneTab() {
   const handleApplyOdds = (val) => {
     const parsed = parseFloat(val);
     if (!isNaN(parsed) && parsed >= 1.01) {
-      const formatted = parsed.toFixed(2);
+      const rounded = parseFloat(parsed.toFixed(4));
+      const formatted = rounded % 1 === 0 ? rounded.toFixed(2) : String(rounded);
       setTargetOdds(formatted);
       setInputOdds(formatted);
     }
@@ -313,7 +314,7 @@ export default function SafeZoneTab() {
               <form onSubmit={handleInputOddsSubmit} className="flex items-center gap-1 ml-1">
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.0001"
                   min="1.01"
                   max="100.0"
                   value={inputOdds}

@@ -120,8 +120,12 @@ class ILotBetAviatorGame(BaseGameAddon):
                 except Exception:
                     continue
 
-            # 5. Fill target auto cashout odds (e.g. 1.50)
-            target_str = f"{auto_cashout:.2f}"
+            # 5. Fill target auto cashout odds (e.g. 1.50 or 1.33)
+            target_str = f"{auto_cashout:.4f}".rstrip('0')
+            if target_str.endswith('.'):
+                target_str += '00'
+            elif len(target_str.split('.')[1]) == 1:
+                target_str += '0'
             for inp_sel in [
                 ".auto-area-right input.cash-out-odds-input",
                 ".auto-area-right input",

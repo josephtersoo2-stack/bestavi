@@ -83,8 +83,12 @@ def setup_auto_cashout_tab(card_or_page: object, auto_tab_selector: str,
                 ab_switch.click()
                 time.sleep(0.2)
 
-        # 4. Fill Auto Cash Out Odds Target (e.g. 1.50)
-        target_str = f"{target_odds:.2f}"
+        # 4. Fill Auto Cash Out Odds Target (e.g. 1.50 or 1.33)
+        target_str = f"{target_odds:.4f}".rstrip('0')
+        if target_str.endswith('.'):
+            target_str += '00'
+        elif len(target_str.split('.')[1]) == 1:
+            target_str += '0'
         for inp_sel in [
             ".auto-area-right input.cash-out-odds-input",
             ".auto-area-right input",

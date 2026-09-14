@@ -117,7 +117,7 @@ export default function SettingsTab({ settings, onSave, saving }) {
       if (name === 'auto_cashout' && updated.strategy === 'martingale') {
         const odds = parseFloat(val);
         if (odds > 1.0) {
-          const suggested = Math.max(1.1, Math.ceil((1.0 / (odds - 1.0)) * 10) / 10);
+          const suggested = Math.max(1.01, Math.round((odds / (odds - 1.0)) * 10000) / 10000);
           updated.multiplier = suggested;
         }
       }
@@ -149,7 +149,7 @@ export default function SettingsTab({ settings, onSave, saving }) {
     for (let i = 0; i <= maxSteps; i++) {
       if (i > 0) {
         if (formData.strategy === 'martingale') {
-          current = current * mult;
+          current = Math.round(current * mult * 100) / 100;
         } else if (formData.strategy === 'dalembert') {
           current = current + base;
         } else if (formData.strategy === 'flat') {
@@ -404,8 +404,8 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   <input
                     type="number"
                     name="base_stake"
-                    step="1"
-                    min="10"
+                    step="0.0001"
+                    min="0.0001"
                     value={formData.base_stake}
                     onChange={handleChange}
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
@@ -441,7 +441,7 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   <input
                     type="number"
                     name="auto_cashout"
-                    step="0.01"
+                    step="0.0001"
                     min="1.01"
                     max="100.0"
                     value={formData.auto_cashout}
@@ -449,7 +449,7 @@ export default function SettingsTab({ settings, onSave, saving }) {
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
                     required
                   />
-                  <span className="text-[11px] text-gray-500">Target multiplier (e.g. 1.50x)</span>
+                  <span className="text-[11px] text-gray-500">Target multiplier (e.g. 1.30x or 1.50x, up to 4 decimals)</span>
                 </div>
 
                 {/* Loss Escalation Multiplier */}
@@ -460,14 +460,15 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   <input
                     type="number"
                     name="multiplier"
-                    step="0.1"
-                    min="1.1"
+                    step="0.0001"
+                    min="1.01"
+                    max="100.0"
                     value={formData.multiplier}
                     onChange={handleChange}
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
                     required
                   />
-                  <span className="text-[11px] text-gray-500">Recommended: 3.0x for 1.50x odds</span>
+                  <span className="text-[11px] text-gray-500">Recommended: 3.0x for 1.50x, 4.33x for 1.30x (up to 4 decimals)</span>
                 </div>
 
                 {/* Maximum Loss Steps */}
@@ -480,6 +481,7 @@ export default function SettingsTab({ settings, onSave, saving }) {
                     name="max_loss_steps"
                     min="1"
                     max="20"
+                    step="1"
                     value={formData.max_loss_steps}
                     onChange={handleChange}
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
@@ -496,7 +498,8 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   <input
                     type="number"
                     name="max_stake"
-                    step="10"
+                    step="0.0001"
+                    min="1"
                     value={formData.max_stake}
                     onChange={handleChange}
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
@@ -513,7 +516,8 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   <input
                     type="number"
                     name="stop_loss"
-                    step="50"
+                    step="0.0001"
+                    min="1"
                     value={formData.stop_loss}
                     onChange={handleChange}
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
@@ -530,7 +534,8 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   <input
                     type="number"
                     name="profit_target"
-                    step="50"
+                    step="0.0001"
+                    min="1"
                     value={formData.profit_target}
                     onChange={handleChange}
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition-colors font-mono"

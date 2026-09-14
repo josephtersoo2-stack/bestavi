@@ -44,7 +44,12 @@ class BCGameLimboGame(BaseGameAddon):
             target_inp = page_or_root.locator(self.selectors.auto_cashout_selector).first
             if target_inp.is_visible():
                 target_inp.click()
-                target_inp.fill(f"{auto_cashout:.2f}")
+                t_str = f"{auto_cashout:.4f}".rstrip('0')
+                if t_str.endswith('.'):
+                    t_str += '00'
+                elif len(t_str.split('.')[1]) == 1:
+                    t_str += '0'
+                target_inp.fill(t_str)
             stake_inp = page_or_root.locator(self.selectors.stake_input_selector).first
             if stake_inp.is_visible():
                 stake_inp.click()

@@ -54,7 +54,12 @@ class BCGameCrashGame(BaseGameAddon):
             co_inp = page_or_root.locator(self.selectors.auto_cashout_selector).first
             if co_inp.is_visible():
                 co_inp.click()
-                co_inp.fill(f"{auto_cashout:.2f}")
+                t_str = f"{auto_cashout:.4f}".rstrip('0')
+                if t_str.endswith('.'):
+                    t_str += '00'
+                elif len(t_str.split('.')[1]) == 1:
+                    t_str += '0'
+                co_inp.fill(t_str)
 
             # 3. Fill Base Stake
             stake_inp = page_or_root.locator(self.selectors.stake_input_selector).first

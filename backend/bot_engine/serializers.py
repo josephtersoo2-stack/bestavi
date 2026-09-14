@@ -52,19 +52,19 @@ class BotConfigSerializer(serializers.ModelSerializer):
         return ret
 
     def validate_base_stake(self, value):
-        if value < 10.0 or value > 50000.0:
-            raise serializers.ValidationError("Base stake must be between 10.0 and 50,000.0 NGN")
-        return value
+        if value < 1.0 or value > 50000.0:
+            raise serializers.ValidationError("Base stake must be between 1.0 and 50,000.0 NGN")
+        return round(value, 4)
 
     def validate_multiplier(self, value):
-        if value < 1.1 or value > 25.0:
-            raise serializers.ValidationError("Loss multiplier must be between 1.1x and 25.0x")
-        return value
+        if value < 1.01 or value > 100.0:
+            raise serializers.ValidationError("Loss multiplier must be between 1.01x and 100.0x")
+        return round(value, 4)
 
     def validate_auto_cashout(self, value):
         if value < 1.01 or value > 100.0:
             raise serializers.ValidationError("Auto cashout must be between 1.01x and 100.0x")
-        return value
+        return round(value, 4)
 
     def validate_strategy(self, value):
         allowed = {'martingale', 'dalembert', 'flat', 'fibonacci'}
