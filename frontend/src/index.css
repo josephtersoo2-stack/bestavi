@@ -417,3 +417,23 @@ input, select, textarea {
 .react-markdown-prose table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; }
 .react-markdown-prose th, .react-markdown-prose td { border: 1px solid rgba(255,255,255,0.1); padding: 0.25rem 0.5rem; text-align: left; }
 .react-markdown-prose th { background: rgba(0,0,0,0.2); font-weight: 600; }
+
+/* KaTeX math typography and display math equations */
+.react-markdown-prose .katex-display {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.6rem 0.85rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+}
+.react-markdown-prose .katex {
+  color: #f3f4f6;
+  font-size: 1.05em;
+}
+.react-markdown-prose .katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}

@@ -27,6 +27,7 @@ export default function SettingsTab({ settings, onSave, saving }) {
     stop_loss: 10000.0,
     profit_target: 5000.0,
     dry_run: false,
+    ceiling_rule: true,
     network_auto_retry: true,
     network_retry_delay: 10,
     network_max_retries: 5,
@@ -141,19 +142,20 @@ export default function SettingsTab({ settings, onSave, saving }) {
     const maxSteps = Number(formData.max_loss_steps) || 5;
     const maxStake = Number(formData.max_stake) || 5000;
     const cashout = Number(formData.auto_cashout) || 1.5;
+    const isCeiling = formData.ceiling_rule ?? (formData.platform === 'ilotbet');
 
     const rows = [];
-    let current = base;
+    let current = isCeiling ? Math.ceil(base) : base;
     let totalInvested = 0;
 
     for (let i = 0; i <= maxSteps; i++) {
       if (i > 0) {
         if (formData.strategy === 'martingale') {
-          current = Math.round(current * mult * 100) / 100;
+          current = isCeiling ? Math.ceil(current * mult) : Math.round(current * mult * 100) / 100;
         } else if (formData.strategy === 'dalembert') {
           current = current + base;
         } else if (formData.strategy === 'flat') {
-          current = base;
+          current = isCeiling ? Math.ceil(base) : base;
         }
       }
       totalInvested += current;
@@ -543,6 +545,21 @@ export default function SettingsTab({ settings, onSave, saving }) {
                   />
                   <span className="text-[11px] text-gray-500">Auto-stops once profit target is reached</span>
                 </div>
+              </div>
+
+              {/* Ceiling Rule (Integer-Only Staking) */}
+              <div className="flex items-start gap-3 p-3 bg-gray-900/60 rounded-xl border border-gray-800">
+                <input
+                  type="checkbox"
+                  id="ceiling_rule"
+                  name="ceiling_rule"
+                  checked={formData.ceiling_rule ?? true}
+                  onChange={handleChange}
+                  className="w-4 h-4 mt-0.5 text-red-500 rounded bg-gray-800 border-gray-700 focus:ring-red-500"
+                />
+                <label htmlFor="ceiling_rule" className="text-xs text-gray-300 select-none cursor-pointer leading-relaxed">
+                  <b className="text-white">Ceiling Rule (Always Round UP to Whole Number):</b> Required for ILOTBET and zero-decimal betting. Rounds any fractional stake up to the nearest integer so you never suffer a deficit on win (e.g. 433.33 &rarr; 434).
+                </label>
               </div>
 
               {/* Dry Run Mode Checkbox */}

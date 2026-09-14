@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -24,8 +25,14 @@ class FlatStrategy:
 class MartingaleStrategy:
     multiplier: float = 2.0
     name: str = "martingale"
+    ceiling_rule: bool = False
+
     def next_stake(self, base_stake: float, current_stake: float, loss_streak: int) -> float:
-        return base_stake if loss_streak == 0 else round(current_stake * self.multiplier, 2)
+        if loss_streak == 0:
+            return float(math.ceil(base_stake)) if self.ceiling_rule else base_stake
+        raw = current_stake * self.multiplier
+        return float(math.ceil(raw)) if self.ceiling_rule else round(raw, 2)
+
     def on_win(self) -> None: pass
     def reset(self) -> None: pass
 
@@ -34,8 +41,14 @@ class MartingaleStrategy:
 class RecoveryStrategy:
     multiplier: float = 1.5
     name: str = "recovery"
+    ceiling_rule: bool = False
+
     def next_stake(self, base_stake: float, current_stake: float, loss_streak: int) -> float:
-        return base_stake if loss_streak == 0 else round(current_stake * self.multiplier, 2)
+        if loss_streak == 0:
+            return float(math.ceil(base_stake)) if self.ceiling_rule else base_stake
+        raw = current_stake * self.multiplier
+        return float(math.ceil(raw)) if self.ceiling_rule else round(raw, 2)
+
     def on_win(self) -> None: pass
     def reset(self) -> None: pass
 
@@ -45,12 +58,14 @@ class ExactRecoveryStrategy:
     """Calculates the exact stake to recover all cumulative losses plus target profit."""
     target_odds: float = 1.5
     name: str = "exact_recovery"
+    ceiling_rule: bool = False
+    target_profit: float | None = None
     _accumulated_loss: float = field(default=0.0, init=False)
 
     def next_stake(self, base_stake: float, current_stake: float, loss_streak: int) -> float:
         if loss_streak == 0:
             self._accumulated_loss = 0.0
-            return base_stake
+            return float(math.ceil(base_stake)) if self.ceiling_rule else base_stake
         if self.target_odds <= 1.0:
             return base_stake
         # If we have entered a loss streak, track accumulated loss
@@ -59,8 +74,18 @@ class ExactRecoveryStrategy:
         else:
             self._accumulated_loss += current_stake
         net_odds = self.target_odds - 1.0
-        # Required stake to cover accumulated losses and gain 1x base_stake profit
-        next_val = (self._accumulated_loss + base_stake) / net_odds
+        # When ceiling_rule is active, target profit is initial round profit (base_stake * net_odds)
+        if self.target_profit is not None:
+            profit = self.target_profit
+        elif self.ceiling_rule:
+            profit = base_stake * net_odds
+        else:
+            profit = base_stake
+
+        # Required stake to cover accumulated losses and gain target profit:
+        next_val = (self._accumulated_loss + profit) / net_odds
+        if self.ceiling_rule:
+            return float(math.ceil(next_val))
         return round(next_val, 2)
 
     def on_win(self) -> None:
@@ -92,11 +117,11 @@ def calculate_loss_multiplier(target_odds: float) -> float:
     return round(target_odds / (target_odds - 1.0), 4)
 
 
-def make_strategy(name: str, multiplier: float = 2.0, target_odds: float = 1.5) -> Strategy:
+def make_strategy(name: str, multiplier: float = 2.0, target_odds: float = 1.5, ceiling_rule: bool = False) -> Strategy:
     normalized = name.strip().lower()
-    if normalized == "martingale": return MartingaleStrategy(multiplier)
-    if normalized in {"recovery", "1.5x", "one_point_five"}: return RecoveryStrategy()
-    if normalized in {"exact_recovery", "exact", "odds_recovery"}: return ExactRecoveryStrategy(target_odds)
+    if normalized == "martingale": return MartingaleStrategy(multiplier, ceiling_rule=ceiling_rule)
+    if normalized in {"recovery", "1.5x", "one_point_five"}: return RecoveryStrategy(ceiling_rule=ceiling_rule)
+    if normalized in {"exact_recovery", "exact", "odds_recovery"}: return ExactRecoveryStrategy(target_odds, ceiling_rule=ceiling_rule)
     if normalized == "fibonacci": return FibonacciStrategy()
     if normalized in {"flat", "fixed"}: return FlatStrategy()
     raise ValueError(f"Unknown strategy: {name}")

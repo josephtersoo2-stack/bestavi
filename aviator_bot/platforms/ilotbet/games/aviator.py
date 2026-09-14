@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 import time
 from typing import Callable, Any
@@ -144,8 +145,10 @@ class ILotBetAviatorGame(BaseGameAddon):
                 except Exception:
                     continue
 
-            # 6. Fill base stake input
-            formatted_stake = f"{int(base_stake)}" if base_stake.is_integer() else f"{base_stake:.2f}"
+            # 6. Fill base stake input (Ceiling Rule: ILOTBET does not accept decimal stakes)
+            if not float(base_stake).is_integer():
+                base_stake = float(math.ceil(base_stake))
+            formatted_stake = f"{int(base_stake)}"
             try:
                 stake_inp = card.locator(self.selectors.stake_input_selector).first
                 if stake_inp.is_visible():
@@ -189,7 +192,10 @@ class ILotBetAviatorGame(BaseGameAddon):
     def place_bet(self, page_or_root: Any, stake: float, auto_cashout: float) -> None:
         """Fill stake input and click BET button."""
         card = page_or_root.locator(".bet-box").first if hasattr(page_or_root, "locator") else page_or_root
-        formatted = f"{int(stake)}" if stake.is_integer() else f"{stake:.2f}"
+        # Ceiling Rule: ILOTBET blocks decimal staking. Always round UP to next whole integer.
+        if not float(stake).is_integer():
+            stake = float(math.ceil(stake))
+        formatted = f"{int(stake)}"
 
         # Human-like delay
         time.sleep(random.uniform(0.15, 0.35))

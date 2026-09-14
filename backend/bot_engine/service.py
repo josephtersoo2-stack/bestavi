@@ -334,6 +334,7 @@ class DjangoBotService:
             stop_loss=config.stop_loss,
             profit_target=config.profit_target,
             dry_run=config.dry_run,
+            ceiling_rule=getattr(config, "ceiling_rule", True),
             network_auto_retry=config.network_auto_retry,
             network_retry_delay=config.network_retry_delay,
             network_max_retries=config.network_max_retries,

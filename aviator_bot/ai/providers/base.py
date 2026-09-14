@@ -17,6 +17,7 @@ class LLMProviderProtocol(Protocol):
         model: str = "",
         api_key: str = "",
         temperature: float = 0.2,
+        max_tokens: int = 8192,
     ) -> str:
         """Generate text completion from the provider."""
         ...

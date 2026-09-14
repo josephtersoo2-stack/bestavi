@@ -28,7 +28,7 @@ class BotConfigSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'base_stake', 'strategy', 'multiplier', 'auto_cashout',
             'max_stake', 'max_loss_steps', 'stop_loss', 'profit_target',
-            'dry_run', 'network_auto_retry', 'network_retry_delay', 'network_max_retries',
+            'dry_run', 'ceiling_rule', 'network_auto_retry', 'network_retry_delay', 'network_max_retries',
             'site', 'platform', 'game', 'game_url',
             'ai_enabled', 'ai_autonomous_mode', 'ai_provider', 'ai_model',
             'gemini_api_key', 'openrouter_api_key', 'ai_risk_tolerance',

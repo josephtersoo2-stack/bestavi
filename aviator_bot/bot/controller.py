@@ -39,7 +39,12 @@ class BotController:
         self.user_stopped = False
         self.user_paused = False
         self.retry_count = 0
-        self.strategy = make_strategy(settings.strategy, settings.multiplier, settings.auto_cashout)
+        self.strategy = make_strategy(
+            settings.strategy,
+            settings.multiplier,
+            settings.auto_cashout,
+            ceiling_rule=getattr(settings, "ceiling_rule", True) or (settings.site == "ilotbet")
+        )
         self.risk = RiskManager(settings.starting_balance if settings.dry_run else 0.0, RiskLimits(settings.max_stake, settings.max_loss_steps,
                                                                       settings.stop_loss, settings.profit_target))
         if not settings.dry_run:
@@ -71,7 +76,12 @@ class BotController:
     def update_settings(self, settings: BotSettings) -> None:
         """Update runtime settings dynamically from dashboard inputs without restarting browser."""
         self.settings = settings
-        self.strategy = make_strategy(settings.strategy, settings.multiplier, settings.auto_cashout)
+        self.strategy = make_strategy(
+            settings.strategy,
+            settings.multiplier,
+            settings.auto_cashout,
+            ceiling_rule=getattr(settings, "ceiling_rule", True) or (settings.site == "ilotbet")
+        )
         current_bal = self.risk.balance
         self.risk = RiskManager(
             current_bal if current_bal is not None else (settings.starting_balance if settings.dry_run else 0.0),

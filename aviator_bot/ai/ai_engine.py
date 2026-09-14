@@ -157,6 +157,7 @@ class AIEngine:
             model=config.model_name,
             api_key=config.api_key,
             temperature=0.4,
+            max_tokens=config.max_tokens,
         )
 
 

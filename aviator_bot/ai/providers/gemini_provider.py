@@ -64,6 +64,7 @@ class GeminiProvider:
         model: str = "gemini-flash-latest",
         api_key: str = "",
         temperature: float = 0.2,
+        max_tokens: int = 8192,
     ) -> str:
         """Call Gemini generateContent endpoint with zero secrets in URL."""
         if not api_key:
@@ -87,7 +88,7 @@ class GeminiProvider:
             ],
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": 2048,
+                "maxOutputTokens": max_tokens,
             }
         }
 
@@ -96,7 +97,7 @@ class GeminiProvider:
                 "parts": [{"text": system_prompt}]
             }
 
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=90.0) as client:
             resp = client.post(url, json=payload, headers=headers)
             if resp.status_code != 200:
                 clean_err = sanitize_log_message(resp.text)

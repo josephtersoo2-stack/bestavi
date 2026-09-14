@@ -53,6 +53,7 @@ class OpenRouterProvider:
         model: str = "deepseek/deepseek-chat",
         api_key: str = "",
         temperature: float = 0.2,
+        max_tokens: int = 8192,
     ) -> str:
         """Call OpenRouter chat completions endpoint."""
         if not api_key:
@@ -74,10 +75,10 @@ class OpenRouterProvider:
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": 2048,
+            "max_tokens": max_tokens,
         }
 
-        with httpx.Client(timeout=45.0) as client:
+        with httpx.Client(timeout=90.0) as client:
             resp = client.post(f"{self.BASE_URL}/chat/completions", json=payload, headers=headers)
             if resp.status_code != 200:
                 raise RuntimeError(f"OpenRouter API error ({resp.status_code}): {resp.text}")

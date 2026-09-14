@@ -12,6 +12,7 @@ class BotConfig(models.Model):
     stop_loss = models.FloatField(default=10000.0, help_text="Total session stop-loss in NGN")
     profit_target = models.FloatField(default=5000.0, help_text="Total session profit target in NGN")
     dry_run = models.BooleanField(default=False, help_text="Simulation mode without placing real bets")
+    ceiling_rule = models.BooleanField(default=True, help_text="Always round fractional stakes up to next whole integer (Ceiling Rule)")
     network_auto_retry = models.BooleanField(default=True, help_text="Automatically retry on connection loss")
     network_retry_delay = models.IntegerField(default=10, help_text="Seconds to wait between retry attempts")
     network_max_retries = models.IntegerField(default=5, help_text="Maximum consecutive reconnect attempts")

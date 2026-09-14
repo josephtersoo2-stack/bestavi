@@ -27,7 +27,12 @@ class PaperTradingController:
         self.history = history or SQLiteHistory(settings.database_path)
         self.on_event = on_event or (lambda _: None)
         self.on_snapshot = on_snapshot or (lambda _: None)
-        self.strategy = make_strategy(settings.strategy, settings.multiplier, settings.auto_cashout)
+        self.strategy = make_strategy(
+            settings.strategy,
+            settings.multiplier,
+            settings.auto_cashout,
+            ceiling_rule=getattr(settings, "ceiling_rule", True) or (settings.site == "ilotbet")
+        )
         self.risk = RiskManager(settings.starting_balance, RiskLimits(settings.max_stake, settings.max_loss_steps,
                                                                       settings.stop_loss, settings.profit_target))
         self.current_stake = settings.base_stake

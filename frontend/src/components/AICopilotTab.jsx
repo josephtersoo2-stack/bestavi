@@ -33,10 +33,13 @@ import {
   ToggleLeft,
   ToggleRight,
   Database,
-  BookOpen
+  BookOpen,
+  Copy
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { API_BASE } from '../config';
 
 export default function AICopilotTab({ currentPlatform, currentGame, onApplySettings }) {
@@ -64,7 +67,29 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
   const [chatMessages, setChatMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
+  const [copiedMsgId, setCopiedMsgId] = useState(null);
   const chatBottomRef = useRef(null);
+
+  const handleCopyMessage = (text, id) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedMsgId(id);
+    setTimeout(() => setCopiedMsgId(null), 2000);
+  };
+
+  const markdownComponents = {
+    table: ({ node, ...props }) => (
+      <div className="overflow-x-auto my-2 rounded-lg border border-white/10 bg-black/30">
+        <table className="w-full text-left border-collapse" {...props} />
+      </div>
+    ),
+    th: ({ node, ...props }) => (
+      <th className="bg-gray-800/80 px-3 py-1.5 text-[11px] font-semibold text-gray-200 border-b border-white/10 whitespace-nowrap" {...props} />
+    ),
+    td: ({ node, ...props }) => (
+      <td className="px-3 py-1.5 text-[11px] border-b border-white/5 whitespace-nowrap text-gray-300" {...props} />
+    ),
+  };
 
   // Discovery Memory Vault State
   const [copilotMode, setCopilotMode] = useState('chat'); // 'chat' | 'vault'
@@ -912,10 +937,37 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                         )}
                       </div>
                       <div className="react-markdown-prose whitespace-normal break-words leading-relaxed text-xs">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={markdownComponents}
+                        >
                           {msg.text}
                         </ReactMarkdown>
                       </div>
+
+                      {/* User Message Actions */}
+                      {msg.role === 'user' && (
+                        <div className="mt-1.5 flex justify-end">
+                          <button
+                            onClick={() => handleCopyMessage(msg.text, msg.id || i)}
+                            className="flex items-center gap-1 text-[10px] text-red-200 hover:text-white transition-colors opacity-80 hover:opacity-100"
+                            title="Copy message"
+                          >
+                            {copiedMsgId === (msg.id || i) ? (
+                              <>
+                                <Check className="w-2.5 h-2.5 text-white" />
+                                <span className="font-semibold text-[9px]">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-2.5 h-2.5" />
+                                <span className="text-[9px]">Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
 
                       {/* If this response triggered a memory save, show glowing badge */}
                       {msg.metadata?.saved_memory && (
@@ -939,14 +991,33 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
                       {/* Quick Action Toolbar on Assistant Messages */}
                       {msg.role !== 'user' && (
                         <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-500">
-                          <button
-                            onClick={() => handleQuickSaveMessage(msg.text)}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-purple-900/40 hover:text-purple-300 text-gray-400 transition-colors"
-                            title="Save this finding to permanent Swarm memory"
-                          >
-                            <BookmarkPlus className="w-3 h-3 text-purple-400" />
-                            <span>Save to Memory</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleCopyMessage(msg.text, msg.id || i)}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-gray-800 hover:text-gray-200 text-gray-400 transition-colors"
+                              title="Copy full message text"
+                            >
+                              {copiedMsgId === (msg.id || i) ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span className="text-emerald-400 font-medium">Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3 text-gray-400" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleQuickSaveMessage(msg.text)}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-purple-900/40 hover:text-purple-300 text-gray-400 transition-colors"
+                              title="Save this finding to permanent Swarm memory"
+                            >
+                              <BookmarkPlus className="w-3 h-3 text-purple-400" />
+                              <span>Save to Memory</span>
+                            </button>
+                          </div>
                           <span>{msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                         </div>
                       )}
@@ -1154,7 +1225,11 @@ export default function AICopilotTab({ currentPlatform, currentGame, onApplySett
 
                     {/* Content (Rendered Markdown) */}
                     <div className="react-markdown-prose text-xs text-gray-300 leading-relaxed bg-gray-950/60 p-3 rounded-xl border border-gray-850 max-h-48 overflow-y-auto">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={markdownComponents}
+                      >
                         {mem.content}
                       </ReactMarkdown>
                     </div>

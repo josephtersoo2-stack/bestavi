@@ -48,6 +48,7 @@ class BotSettings:
     database_path: str = "data/round_history.sqlite3"
     dry_run: bool = True
     paper_trade: bool = False
+    ceiling_rule: bool = True
     site: str = "ilotbet"
     telegram_token: str = ""
     telegram_chat_id: str = ""
